@@ -134,39 +134,32 @@ class CanalystDevice(object):
             channel, self.COMMAND_MESSAGE_STATUS, protocol.MessageStatusResponse
         )
 
-        expected = status.rx_pending
+        if status.rx_pending == 0:
+            return []
+
+        # Calculate how large our read should be, add one buffer to try and avoid issues
+        # caused by fragmentation (sometimes the RX message is in the next buffer not the
+        # current one)
+        rx_buffer_num = (status.rx_pending + 2) // 3 + 1
+        rx_buffer_size = rx_buffer_num * self.MESSAGE_BUF_LEN
+
+        message_ep = CHANNEL_TO_MESSAGE_EP[channel]
+        rx_data = self._dev.read(message_ep | 0x80, rx_buffer_size)
+
+        assert len(rx_data) % self.MESSAGE_BUF_LEN == 0
+        num_buffers = len(rx_data) // self.MESSAGE_BUF_LEN
+
+        # Avoid copying data here, parse the MessageBuffer structures but return
+        # a list of Message objects all pointing into the original USB data
+        # buffer.  This is a little wasteful of total RAM but should be faster,
+        # and we assume the caller is going to process these into another format
+        # anyhow.
         result = []
-
-        # Note that because of some implementation detail the RX buffers are fragmented,
-        # sometimes a buffer only has 0,1,2 but later buffers have valid messages.
-        # Therefore we keep reading until we have at
-        # least all of the packets promised in 'waiting' response.
-        #
-        # (Note that 'result' may end up longer than status.rx_pending if some CAN
-        # messages are received while this loop is running.)
-        while len(result) < expected:
-            # Calculate how large our read should be
-            rx_buffer_num = (expected + 2) // 3 + 1
-            rx_buffer_size = rx_buffer_num * self.MESSAGE_BUF_LEN
-
-            message_ep = CHANNEL_TO_MESSAGE_EP[channel]
-            rx_data = self._dev.read(message_ep | 0x80, rx_buffer_size)
-
-            assert len(rx_data) % self.MESSAGE_BUF_LEN == 0
-            num_buffers = len(rx_data) // self.MESSAGE_BUF_LEN
-
-            # Avoid copying data here, parse the MessageBuffer structures but return
-            # a list of Message objects all pointing into the original USB data
-            # buffer.  This is a little wasteful of total RAM but should be faster,
-            # and we assume the caller is going to process these into another format
-            # anyhow.
-            result = []
-            message_bufs = (protocol.MessageBuffer * num_buffers).from_buffer(rx_data)
-            for buf in message_bufs:
-                count = buf.count
-                assert 0 <= count <= 3
-                result += buf.messages[:count]
-                expected -= count
+        message_bufs = (protocol.MessageBuffer * num_buffers).from_buffer(rx_data)
+        for buf in message_bufs:
+            count = buf.count
+            assert 0 <= count <= 3
+            result += buf.messages[:count]
 
         return result
 
