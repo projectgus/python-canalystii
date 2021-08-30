@@ -29,7 +29,7 @@ class CanalystDevice(object):
                 )
             )
             if not devices:
-                raise ValueError("No Canalyst-II device was found")
+                raise ValueError("No Canalyst-II USB device found")
             if len(devices) <= device_index:
                 raise ValueError(
                     f"Can't open device_index {device_index}, only {len(devices)} devices found."
