@@ -1,8 +1,11 @@
 import ctypes
+import logging
 import usb.core
 import time
 
 from . import protocol
+
+logger = logging.getLogger(__name__)
 
 # "Fast" lookups to go from channel to USB endpoint number
 CHANNEL_TO_COMMAND_EP = [2, 4]  # Command EP for channels 0,1
@@ -37,12 +40,28 @@ class CanalystDevice(object):
             self._dev = devices[device_index]
             self._dev.set_configuration(1)
 
+            # Check this looks like the firmware we expect: as this is an unofficial driver,
+            # we don't know if other versions might are out there.
+            if self._dev.product != "Chuangxin Tech USBCAN/CANalyst-II":
+                logger.warning(
+                    f"Unexpected USB product string: {self._dev.product}. Firmware version may be unsupported."
+                )
+            interfaces = self._dev.get_active_configuration().interfaces()
+            if len(interfaces) != 1:
+                logger.warning(
+                    f"Unexpected interface count {len(interfaces)}. Firmware version may be unsupported."
+                )
+            endpoints = interfaces[0].endpoints()
+            # For whatever reason FW has 6 bidirectional BULK endpoints!
+            if len(endpoints) != 12:
+                logger.warning(
+                    f"Unexpected endpoint count {len(endpoints)}. Firmware version mayb e unsupported."
+                )
+
             if bitrate is not None or timing0 is not None:
                 # if not specified, don't initialize yet
                 self.init(0, bitrate, timing0, timing1)
                 self.init(1, bitrate, timing0, timing1)
-
-        # TODO: check _dev properties match what we expect
 
     def clear_rx_buffer(self, channel):
         """Clears the device's receive buffer for the specified channel.
