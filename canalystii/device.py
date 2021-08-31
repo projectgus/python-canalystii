@@ -42,6 +42,8 @@ class CanalystDevice(object):
             if active_config is None or active_config.bConfigurationValue != 1:
                 self._dev.set_configuration(1)
 
+            self._initialized = [False, False]
+            self._started = [False, False]
 
             # Check this looks like the firmware we expect: as this is an unofficial driver,
             # we don't know if other versions might are out there.
@@ -147,17 +149,28 @@ class CanalystDevice(object):
             unknown2=0x1,
         )  # placeholder
         self.send_command(channel, init_packet)
+        self._initialized[channel] = True
         self.start(channel)
 
     def stop(self, channel):
         """Stop this channel. Data won't be sent or received on this channel until it is started again."""
+        if not self._initialized[channel]:
+            raise RuntimeError(f"Channel {channel} is not initialized.")
         self.send_command(channel, protocol.SimpleCommand(protocol.COMMAND_STOP))
+        self._started[channel] = False
 
     def start(self, channel):
         """Start this channel."""
+        if not self._initialized[channel]:
+            raise RuntimeError(f"Channel {channel} is not initialized.")
         self.send_command(channel, protocol.SimpleCommand(protocol.COMMAND_START))
+        self._started[channel] = True
 
     def receive(self, channel):
+        if not self._initialized[channel]:
+            raise RuntimeError(f"Channel {channel} is not initialized.")
+        if not self._started[channel]:
+            raise RuntimeError(f"Channel {channel} is stopped, can't receive messages.")
         status = self.send_command(
             channel, self.COMMAND_MESSAGE_STATUS, protocol.MessageStatusResponse
         )
@@ -192,6 +205,10 @@ class CanalystDevice(object):
         return result
 
     def send(self, channel, messages, flush_timeout=None):
+        if not self._initialized[channel]:
+            raise RuntimeError(f"Channel {channel} is not initialized.")
+        if not self._started[channel]:
+            raise RuntimeError(f"Channel {channel} is stopped, can't send messages.")
         if isinstance(messages, protocol.Message):
             messages = [messages]
         tx_buffer_num = (len(messages) + 2) // 3
@@ -207,10 +224,12 @@ class CanalystDevice(object):
         if flush_timeout is not None:
             return self.flush_tx_buffer(channel, flush_timeout)
 
-    def get_can_status(self):
+    def get_can_status(self, channel):
         """Return some internal CAN-related values. The actual meaning of these is currently unknown."""
+        if not self._initialized[channel]:
+            logger.warning(f"Channel {channel} is not initialized, CAN status may be invalid.")
         return self.send_command(
-            0,
+            channel,
             protocol.SimpleCommand(protocol.COMMAND_CAN_STATUS),
             protocol.CANStatusResponse,
         )
