@@ -38,7 +38,10 @@ class CanalystDevice(object):
                     f"Can't open device_index {device_index}, only {len(devices)} devices found."
                 )
             self._dev = devices[device_index]
-            self._dev.set_configuration(1)
+            active_config = self._dev.get_active_configuration()
+            if active_config is None or active_config.bConfigurationValue != 1:
+                self._dev.set_configuration(1)
+
 
             # Check this looks like the firmware we expect: as this is an unofficial driver,
             # we don't know if other versions might are out there.
@@ -62,6 +65,12 @@ class CanalystDevice(object):
                 # if not specified, don't initialize yet
                 self.init(0, bitrate, timing0, timing1)
                 self.init(1, bitrate, timing0, timing1)
+
+    def __del__(self):
+        # In theory pyusb should manage this, but in order to allow a new device
+        # object to be created later (in the same process)  it seems the device needs to be reset (which
+        # calls dispose internally)
+        self._dev.reset()
 
     def clear_rx_buffer(self, channel):
         """Clears the device's receive buffer for the specified channel.
