@@ -72,7 +72,10 @@ class CanalystDevice(object):
         # In theory pyusb should manage this, but in order to allow a new device
         # object to be created later (in the same process)  it seems the device needs to be reset (which
         # calls dispose internally)
-        self._dev.reset()
+        try:
+            self._dev.reset()
+        except AttributeError:
+            pass
 
     def clear_rx_buffer(self, channel):
         """Clears the device's receive buffer for the specified channel.
