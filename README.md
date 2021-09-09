@@ -46,7 +46,7 @@ Currently, the following things are not supported and may not be possible based 
 * Receive buffer hardware overflow detection (see Performance, below).
 * ACK status of sent CAN messages.
 * Failure status of sent CAN messages. If the device fails to get bus arbitration after some unknown amount of time, it will drop the message silently.
-* Hardware filtering of incoming messages. Currently all filtering is done in software. There is a `filter` field of `InitCommand` structure, not clear how it works.
+* Hardware filtering of incoming messages. There is a `filter` field of `InitCommand` structure, not clear how it works.
 * Configuring whether messages are ACKed by Canalyst-II. This may be possible, see `InitCommand` `acc_code` and `acc_mask`.
 
 ## Performance
