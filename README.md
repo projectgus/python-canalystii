@@ -29,7 +29,8 @@ new_message = canalystii.Message(can_id=0x300,
                                  data=(0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08))
 # Send one copy to channel 1
 dev.send(1, new_message)
-# Send 3 copies to channel 0 (argument can be an instance of canalystii.Message or a list of instances)
+# Send 3 copies to channel 0
+# (argument can be an instance of canalystii.Message or a list of instances)
 dev.send(0, [new_message] * 3)
 
 # Stop both channels (need to call start() again to resume capturing or send any messages)
@@ -39,7 +40,7 @@ dev.stop(1)
 
 ## Limitations
 
-Currently, the following things are either not possible or not easy to support based on the known Canalyst-II protocol:
+Currently, the following things are not supported and may not be possible based on the known USB protocol:
 
 * CAN bus error conditions. There is a function `get_can_status()` that seems to provide access to some internal device state, not clear if this can be used to determine when errors occured or invalid messages seen.
 * Receive buffer hardware overflow detection (see Performance, below).

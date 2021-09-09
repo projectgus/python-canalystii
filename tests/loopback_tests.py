@@ -89,7 +89,7 @@ def test_clear_rx_buffer(device):
 def test_bitrate_mismatch(device):
     def print_status(label, msg):
         print(f"{label}:")
-        for field_name, field_type in msg._fields_:
+        for field_name, _field_type in msg._fields_:
             if field_name != "padding":
                 print(f"  {field_name}={hex(getattr(msg, field_name))} ")
         print()
