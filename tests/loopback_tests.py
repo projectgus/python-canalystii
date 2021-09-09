@@ -1,10 +1,12 @@
 import canalystii
+import gc
 import pytest
 import struct
 
 
-@pytest.fixture(scope="session")  # TODO: figure out how to properly GC these
+@pytest.fixture()#scope="session")  # TODO: figure out how to properly GC these
 def device():
+    gc.collect()
     dev = canalystii.CanalystDevice(bitrate=1000000)
     dev.clear_rx_buffer(0)
     dev.clear_rx_buffer(1)
@@ -115,7 +117,8 @@ def test_stop_receiver(device):
     device.stop(1)
 
     assert device.send(0, msg0, 0.1)
-    assert not device.receive(1)
+    with pytest.raises(RuntimeError):
+        device.receive(1)
 
     device.start(1)
 
@@ -131,7 +134,8 @@ def test_stop_sender(device):
 
     device.stop(0)
 
-    assert device.send(0, msg0, 0.1)
+    with pytest.raises(RuntimeError):
+        device.send(0, msg0, 0.1)
     assert not device.receive(1)
 
     device.start(0)

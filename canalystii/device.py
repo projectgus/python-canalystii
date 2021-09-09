@@ -244,8 +244,6 @@ class CanalystDevice(object):
             channel, self.COMMAND_MESSAGE_STATUS, protocol.MessageStatusResponse
         )
 
-        print(status.unknown)
-
         if status.rx_pending == 0:
             return []
 
