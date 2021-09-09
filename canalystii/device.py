@@ -125,7 +125,7 @@ class CanalystDevice(object):
         :param channel: Channel (0 or 1) to flush the TX buffer on.
         :param timeout: Optional number of seconds to continue polling for empty TX buffer. If 0 (default),
             this function will immediately return the current status of the send buffer.
-        :return True if flush is successful (no pending messages to send), False if flushing timed out.
+        :return: True if flush is successful (no pending messages to send), False if flushing timed out.
         """
         deadline = None
         while deadline is None or time.time() < deadline:
@@ -234,7 +234,7 @@ class CanalystDevice(object):
         """Poll the hardware for received CAN messages and return them all as a list.
 
         :param channel: Channel (0 or 1) to poll. The channel must be started.
-        :return List of Message objects representing received CAN messages, in order.
+        :return: List of Message objects representing received CAN messages, in order.
         """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
@@ -287,7 +287,7 @@ class CanalystDevice(object):
               for the buffer state. If None (default) then the function returns immediately,
               when some CAN messages may still be waiting to sent due to CAN bus arbitration.
               See flush_tx_buffer() function for details.
-        :return None if flush_timeout is None (default). Otherwise True if all messages sent
+        :return: None if flush_timeout is None (default). Otherwise True if all messages sent
              (or failed), False if timeout reached.
         """
         if not self._initialized[channel]:
@@ -312,7 +312,7 @@ class CanalystDevice(object):
     def get_can_status(self, channel):
         """Return some internal CAN-related values. The actual meaning of these is currently unknown.
 
-        :return Instance of the CANStatusResponse structure. Note the field names may not be accurate.
+        :return: Instance of the CANStatusResponse structure. Note the field names may not be accurate.
         """
         if not self._initialized[channel]:
             logger.warning(
