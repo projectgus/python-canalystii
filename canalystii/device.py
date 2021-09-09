@@ -23,14 +23,14 @@ class CanalystDevice(object):
     Constructing an instance of this class will cause pyusb to acquire the
     relevant USB interface, and retain it until the object is garbage collected.
 
-    :param:device:_index if more than one Canalyst-II device is connected, this is
+    :param device:_index if more than one Canalyst-II device is connected, this is
         the index to use in the list.
-    :param:usb_device: Optional argument to ignore device_index and provide an instance
+    :param usb_device: Optional argument to ignore device_index and provide an instance
         of a pyusb device object directly.
-    :param:bitrate: If set, both channels are initialized to the specified bitrate and
+    :param bitrate: If set, both channels are initialized to the specified bitrate and
         started automatically. If unset (default) then the "init" method must be called
         before using either channel.
-    :param:timing0: Optional parameter to provide BTR timing directly. Either both or
+    :param timing0: Optional parameter to provide BTR timing directly. Either both or
         neither timing0 and timing1 must be set, and setting these arguments is mutually
         exclusive with setting bitrate. If set, both channels are initialized and started
         automatically.
@@ -107,7 +107,7 @@ class CanalystDevice(object):
         Note that this doesn't seem to 100% work in the device firmware, on a busy bus
         it's possible to receive a small number of "old" messages even after calling this.
 
-        :param:channel: Channel (0 or 1) to clear the RX buffer on.
+        :param channel: Channel (0 or 1) to clear the RX buffer on.
         """
         self.send_command(
             channel, protocol.SimpleCommand(protocol.COMMAND_CLEAR_RX_BUFFER)
@@ -122,10 +122,10 @@ class CanalystDevice(object):
         hardware will attempt bus arbitration multiple times but if it fails then it will still "send" the
         message. It also doesn't consider the ACK status of the message.
 
-        :param:channel: Channel (0 or 1) to flush the TX buffer on.
-        :param:timeout: Optional number of seconds to continue polling for empty TX buffer. If 0 (default),
+        :param channel: Channel (0 or 1) to flush the TX buffer on.
+        :param timeout: Optional number of seconds to continue polling for empty TX buffer. If 0 (default),
             this function will immediately return the current status of the send buffer.
-        :return: True if flush is successful (no pending messages to send), False if flushing timed out.
+        :return True if flush is successful (no pending messages to send), False if flushing timed out.
         """
         deadline = None
         while deadline is None or time.time() < deadline:
@@ -144,10 +144,10 @@ class CanalystDevice(object):
     def send_command(self, channel, command_packet, response_class=None):
         """Low-level function to send a command packet to the channel and optionally wait for a response.
 
-        :param:channel: Channel (0 or 1) to flush the TX buffer on.
-        :param:command_packet: Data to send to the channel. Usually this will be a ctypes Structure, but can be
+        :param channel: Channel (0 or 1) to flush the TX buffer on.
+        :param command_packet: Data to send to the channel. Usually this will be a ctypes Structure, but can be
            anything that supports a bytes buffer interface.
-        :param:response_class: If None (default) then this function doesn't expect to read anything back from the
+        :param response_class: If None (default) then this function doesn't expect to read anything back from the
            device. If not None, should be a ctypes class - 64 bytes will be read into a buffer and returned as an
            object of this type.
         """
@@ -165,14 +165,14 @@ class CanalystDevice(object):
         """Initialize channel to a particular baud rate. This can be called more than once to change
         the channel bit rate.
 
-        :param:channel: Channel (0 or 1) to initialize.
-        :param:bitrate: Bitrate to set for the channel. Either this argument of both
+        :param channel: Channel (0 or 1) to initialize.
+        :param bitrate: Bitrate to set for the channel. Either this argument of both
              timing0 and timing1 must be set.
-        :param:timing0: Raw BTR0 timing value to determine the bitrate. If this argument is set,
+        :param timing0: Raw BTR0 timing value to determine the bitrate. If this argument is set,
              timing1 must also be set and bitrate argument must be unset.
-        :param:timing1: Raw BTR1 timing value to determine the bitrate. If this argument is set,
+        :param timing1: Raw BTR1 timing value to determine the bitrate. If this argument is set,
              timing0 must also be set and bitrate argument must be unset.
-        :param:start: If True (default) then the channel is started after being initialized.
+        :param start: If True (default) then the channel is started after being initialized.
              If set to False, the channel will not be started until the start function is called
              manually.
         """
@@ -212,7 +212,7 @@ class CanalystDevice(object):
     def stop(self, channel):
         """Stop this channel. CAN messages won't be sent or received on this channel until it is started again.
 
-        :param:channel: Channel (0 or 1) to stop. The channel must already be initialized.
+        :param channel: Channel (0 or 1) to stop. The channel must already be initialized.
         """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
@@ -223,7 +223,7 @@ class CanalystDevice(object):
         """Start this channel. This allows CAN messages to be sent and received. The hardware
            will buffer received messages until the receive() function is called.
 
-        :param:channel: Channel (0 or 1) to start. The channel must already be initialized.
+        :param channel: Channel (0 or 1) to start. The channel must already be initialized.
         """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
@@ -233,8 +233,8 @@ class CanalystDevice(object):
     def receive(self, channel):
         """Poll the hardware for received CAN messages and return them all as a list.
 
-        :param:channel: Channel (0 or 1) to poll. The channel must be started.
-        :return: List of Message objects representing received CAN messages, in order.
+        :param channel: Channel (0 or 1) to poll. The channel must be started.
+        :return List of Message objects representing received CAN messages, in order.
         """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
@@ -278,16 +278,16 @@ class CanalystDevice(object):
     def send(self, channel, messages, flush_timeout=None):
         """Send one or more CAN messages to the channel.
 
-        :param:channel: Channel (0 or 1) to send to. The channel must be started.
-        :param:messages: Either a single Message object, or a list of
+        :param channel: Channel (0 or 1) to send to. The channel must be started.
+        :param messages: Either a single Message object, or a list of
               Message objects to send.
-        :param:flush_timeout: If set, don't return until TX buffer is flushed or timeout is
+        :param flush_timeout: If set, don't return until TX buffer is flushed or timeout is
               reached.
               Setting this parameter causes the software to poll the device continuously
               for the buffer state. If None (default) then the function returns immediately,
               when some CAN messages may still be waiting to sent due to CAN bus arbitration.
               See flush_tx_buffer() function for details.
-        :return: None if flush_timeout is None (default). Otherwise True if all messages sent
+        :return None if flush_timeout is None (default). Otherwise True if all messages sent
              (or failed), False if timeout reached.
         """
         if not self._initialized[channel]:
@@ -312,7 +312,7 @@ class CanalystDevice(object):
     def get_can_status(self, channel):
         """Return some internal CAN-related values. The actual meaning of these is currently unknown.
 
-        :return: Instance of the CANStatusResponse structure. Note the field names may not be accurate.
+        :return Instance of the CANStatusResponse structure. Note the field names may not be accurate.
         """
         if not self._initialized[channel]:
             logger.warning(
