@@ -1,4 +1,9 @@
+# Copyright (c) 2021 Angus Gratton
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 # This module containts all of the on-the-wire USB protocol format for the Canalyst-II
+
 from ctypes import (
     c_bool,
     c_byte,
@@ -86,17 +91,20 @@ class InitCommand(LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ("command", c_uint32),  # COMMAND_INIT
-        ("acc_code", c_uint32),  # Unknown (ACKs?), set to 0x0 for now
-        ("acc_mask", c_uint32),  # Unknown (ACKs?), set to 0x0 for now
+        ("acc_code", c_uint32),  # Unknown (ACK behvaiour?), set to 0x1 by CANPro(?)
+        ("acc_mask", c_uint32),  # Similar, set to 0xFFFFFFFF by CANPro
         ("unknown0", c_uint32),  # 0x0 always? maybe related to filter?
         (
             "filter",
-            c_uint32,  # Set to 0x1 for "SingleFilter", 0x0 for "DualFilter" - function unknown
-        ),
+            c_uint32,
+        ),  # CANPro sets to 0x1 for "SingleFilter", 0x0 for "DualFilter" - meaning unknown
         ("unknown1", c_uint32),  # 0x0 always? maybe related to filter?
         ("timing0", c_uint32),  # BTR0
         ("timing1", c_uint32),  # BTR1
-        ("mode", c_uint32),  # Unknown, set to 0x0 for now
+        (
+            "mode",
+            c_uint32,
+        ),  # Unknown, set to 0x0 for now. Setting 0x1 seems to cause device to crash(?)
         ("unknown2", c_uint32),  # Always 0x1 - function unknown
         ("padding", c_uint32 * (0x10 - 0x0A)),
     ]
@@ -112,7 +120,10 @@ class MessageStatusResponse(LittleEndianStructure):
     _fields_ = [
         ("command", c_uint32),
         ("rx_pending", c_uint32),
-        ("tx_pending", c_uint32),
+        ("tx_pending", c_uint16),
+        # at one point this value was set to 0x1 which might have been an error condition (failed to send),
+        # but might also have been a firmware bug (!). Have been unable to reproduce.
+        ("unknown", c_uint16),
         ("padding", c_uint32 * (0x10 - 0x03)),
     ]
 

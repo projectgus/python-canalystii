@@ -1,3 +1,8 @@
+# Copyright (c) 2021 Angus Gratton
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# This module contains device-level interface to Canalyst-II
 import ctypes
 import logging
 import usb.core
@@ -13,6 +18,24 @@ CHANNEL_TO_MESSAGE_EP = [1, 3]  # CAN Message EP for channels 0, 1
 
 
 class CanalystDevice(object):
+    """Encapsulates a low-level USB interface to a Canalyst-II device.
+
+    Constructing an instance of this class will cause pyusb to acquire the
+    relevant USB interface, and retain it until the object is garbage collected.
+
+    :param:device:_index if more than one Canalyst-II device is connected, this is
+        the index to use in the list.
+    :param:usb_device: Optional argument to ignore device_index and provide an instance
+        of a pyusb device object directly.
+    :param:bitrate: If set, both channels are initialized to the specified bitrate and
+        started automatically. If unset (default) then the "init" method must be called
+        before using either channel.
+    :param:timing0: Optional parameter to provide BTR timing directly. Either both or
+        neither timing0 and timing1 must be set, and setting these arguments is mutually
+        exclusive with setting bitrate. If set, both channels are initialized and started
+        automatically.
+    """
+
     # Small optimization, build common command packet one time
     COMMAND_MESSAGE_STATUS = protocol.SimpleCommand(protocol.COMMAND_MESSAGE_STATUS)
 
@@ -21,6 +44,7 @@ class CanalystDevice(object):
     def __init__(
         self, device_index=0, usb_device=None, bitrate=None, timing0=None, timing1=None
     ):
+        """Constructor function."""
         if usb_device is not None:
             self._dev = usb_device
         else:
@@ -80,16 +104,28 @@ class CanalystDevice(object):
     def clear_rx_buffer(self, channel):
         """Clears the device's receive buffer for the specified channel.
 
-        Note that this doesn't seem to 100% work, it's possible to get a small number of messages even
+        Note that this doesn't seem to 100% work in the device firmware, on a busy bus
+        it's possible to receive a small number of "old" messages even after calling this.
+
+        :param:channel: Channel (0 or 1) to clear the RX buffer on.
         """
         self.send_command(
             channel, protocol.SimpleCommand(protocol.COMMAND_CLEAR_RX_BUFFER)
         )
 
     def flush_tx_buffer(self, channel, timeout=0):
-        """Return only after all messages have been sent to this channel or timeout is reached.
+        """Check if all pending messages have left the hardware TX buffer and optionally keep polling until
+        this happens or a timeout is reached.
 
-        Returns True if flush is successful, False if timeout was reached. Pass 0 timeout to poll once only.
+        Note that due to hardware limitations, "no messages in TX buffer" doesn't necessarily mean
+        that the messages were sent successfully - for the default send type 0 (see Message.send_type), the
+        hardware will attempt bus arbitration multiple times but if it fails then it will still "send" the
+        message. It also doesn't consider the ACK status of the message.
+
+        :param:channel: Channel (0 or 1) to flush the TX buffer on.
+        :param:timeout: Optional number of seconds to continue polling for empty TX buffer. If 0 (default),
+            this function will immediately return the current status of the send buffer.
+        :return: True if flush is successful (no pending messages to send), False if flushing timed out.
         """
         deadline = None
         while deadline is None or time.time() < deadline:
@@ -106,6 +142,15 @@ class CanalystDevice(object):
         return False  # timeout!
 
     def send_command(self, channel, command_packet, response_class=None):
+        """Low-level function to send a command packet to the channel and optionally wait for a response.
+
+        :param:channel: Channel (0 or 1) to flush the TX buffer on.
+        :param:command_packet: Data to send to the channel. Usually this will be a ctypes Structure, but can be
+           anything that supports a bytes buffer interface.
+        :param:response_class: If None (default) then this function doesn't expect to read anything back from the
+           device. If not None, should be a ctypes class - 64 bytes will be read into a buffer and returned as an
+           object of this type.
+        """
         ep = CHANNEL_TO_COMMAND_EP[channel]
         self._dev.write(ep, memoryview(command_packet).cast("B"))
         if response_class:
@@ -118,9 +163,18 @@ class CanalystDevice(object):
 
     def init(self, channel, bitrate=None, timing0=None, timing1=None, start=True):
         """Initialize channel to a particular baud rate. This can be called more than once to change
-        the baud rate of an active channel.
+        the channel bit rate.
 
-        By default, the channel is started after being initialized (set start parameter to False to not do this.)
+        :param:channel: Channel (0 or 1) to initialize.
+        :param:bitrate: Bitrate to set for the channel. Either this argument of both
+             timing0 and timing1 must be set.
+        :param:timing0: Raw BTR0 timing value to determine the bitrate. If this argument is set,
+             timing1 must also be set and bitrate argument must be unset.
+        :param:timing1: Raw BTR1 timing value to determine the bitrate. If this argument is set,
+             timing0 must also be set and bitrate argument must be unset.
+        :param:start: If True (default) then the channel is started after being initialized.
+             If set to False, the channel will not be started until the start function is called
+             manually.
         """
         if bitrate is None and timing0 is None and timing1 is None:
             raise ValueError(
@@ -143,7 +197,7 @@ class CanalystDevice(object):
 
         init_packet = protocol.InitCommand(
             command=protocol.COMMAND_INIT,
-            acc_code=0x0,
+            acc_code=0x1,
             acc_mask=0xFFFFFFFF,
             filter=0x1,  # placeholder
             timing0=timing0,
@@ -156,20 +210,32 @@ class CanalystDevice(object):
         self.start(channel)
 
     def stop(self, channel):
-        """Stop this channel. Data won't be sent or received on this channel until it is started again."""
+        """Stop this channel. CAN messages won't be sent or received on this channel until it is started again.
+
+        :param:channel: Channel (0 or 1) to stop. The channel must already be initialized.
+        """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
         self.send_command(channel, protocol.SimpleCommand(protocol.COMMAND_STOP))
         self._started[channel] = False
 
     def start(self, channel):
-        """Start this channel."""
+        """Start this channel. This allows CAN messages to be sent and received. The hardware
+           will buffer received messages until the receive() function is called.
+
+        :param:channel: Channel (0 or 1) to start. The channel must already be initialized.
+        """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
         self.send_command(channel, protocol.SimpleCommand(protocol.COMMAND_START))
         self._started[channel] = True
 
     def receive(self, channel):
+        """Poll the hardware for received CAN messages and return them all as a list.
+
+        :param:channel: Channel (0 or 1) to poll. The channel must be started.
+        :return: List of Message objects representing received CAN messages, in order.
+        """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
         if not self._started[channel]:
@@ -177,6 +243,8 @@ class CanalystDevice(object):
         status = self.send_command(
             channel, self.COMMAND_MESSAGE_STATUS, protocol.MessageStatusResponse
         )
+
+        print(status.unknown)
 
         if status.rx_pending == 0:
             return []
@@ -208,6 +276,20 @@ class CanalystDevice(object):
         return result
 
     def send(self, channel, messages, flush_timeout=None):
+        """Send one or more CAN messages to the channel.
+
+        :param:channel: Channel (0 or 1) to send to. The channel must be started.
+        :param:messages: Either a single Message object, or a list of
+              Message objects to send.
+        :param:flush_timeout: If set, don't return until TX buffer is flushed or timeout is
+              reached.
+              Setting this parameter causes the software to poll the device continuously
+              for the buffer state. If None (default) then the function returns immediately,
+              when some CAN messages may still be waiting to sent due to CAN bus arbitration.
+              See flush_tx_buffer() function for details.
+        :return: None if flush_timeout is None (default). Otherwise True if all messages sent
+             (or failed), False if timeout reached.
+        """
         if not self._initialized[channel]:
             raise RuntimeError(f"Channel {channel} is not initialized.")
         if not self._started[channel]:
@@ -228,9 +310,14 @@ class CanalystDevice(object):
             return self.flush_tx_buffer(channel, flush_timeout)
 
     def get_can_status(self, channel):
-        """Return some internal CAN-related values. The actual meaning of these is currently unknown."""
+        """Return some internal CAN-related values. The actual meaning of these is currently unknown.
+
+        :return: Instance of the CANStatusResponse structure. Note the field names may not be accurate.
+        """
         if not self._initialized[channel]:
-            logger.warning(f"Channel {channel} is not initialized, CAN status may be invalid.")
+            logger.warning(
+                f"Channel {channel} is not initialized, CAN status may be invalid."
+            )
         return self.send_command(
             channel,
             protocol.SimpleCommand(protocol.COMMAND_CAN_STATUS),
