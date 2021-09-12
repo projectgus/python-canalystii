@@ -4,7 +4,7 @@ import pytest
 import struct
 
 
-@pytest.fixture()#scope="session")  # TODO: figure out how to properly GC these
+@pytest.fixture()
 def device():
     gc.collect()
     dev = canalystii.CanalystDevice(bitrate=1000000)
